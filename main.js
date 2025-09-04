@@ -20,14 +20,137 @@ function normalizeName(name) {
   return String(name || "").replace(/\s+/g, " ").trim();
 }
 
-// ===== Static TypeID map (Ores, Moon, Gas, Ice, Triglavian, + all Compressed) =====
+// ===== Full Static TypeID Map =====
+// Includes: Asteroid ores (compressed/uncompressed), Moon ores (compressed/uncompressed),
+// Trig ores, Ice (compressed/uncompressed), Gas (compressed/uncompressed).
 const typeIDs = {
-  // --- Asteroid ores (as before, truncated for brevity) ---
+  // --- Veldspar family ---
   "Veldspar": 1230,
+  "Concentrated Veldspar": 17471,
+  "Dense Veldspar": 17470,
   "Compressed Veldspar": 28430,
+  "Compressed Concentrated Veldspar": 28432,
+  "Compressed Dense Veldspar": 28431,
+
+  // --- Scordite family ---
+  "Scordite": 1228,
+  "Condensed Scordite": 17463,
+  "Massive Scordite": 17464,
+  "Compressed Scordite": 28428,
+  "Compressed Condensed Scordite": 28429,
+  "Compressed Massive Scordite": 28427,
+
+  // --- Plagioclase family ---
+  "Plagioclase": 18,
   "Azure Plagioclase": 17459,
+  "Rich Plagioclase": 17460,
+  "Compressed Plagioclase": 28415,
   "Compressed Azure Plagioclase": 28417,
-  // (… keep rest of asteroid ores here …)
+  "Compressed Rich Plagioclase": 28416,
+
+  // --- Pyroxeres family ---
+  "Pyroxeres": 1229,
+  "Solid Pyroxeres": 17461,
+  "Viscous Pyroxeres": 17462,
+  "Compressed Pyroxeres": 28424,
+  "Compressed Solid Pyroxeres": 28426,
+  "Compressed Viscous Pyroxeres": 28425,
+
+  // --- Omber family ---
+  "Omber": 1231,
+  "Silvery Omber": 17867,
+  "Golden Omber": 17868,
+  "Compressed Omber": 28419,
+  "Compressed Silvery Omber": 28433,
+  "Compressed Golden Omber": 28434,
+
+  // --- Kernite family ---
+  "Kernite": 20,
+  "Luminous Kernite": 17455,
+  "Fiery Kernite": 17456,
+  "Compressed Kernite": 28413,
+  "Compressed Luminous Kernite": 28436,
+  "Compressed Fiery Kernite": 28435,
+
+  // --- Jaspet family ---
+  "Jaspet": 1226,
+  "Pure Jaspet": 17452,
+  "Pristine Jaspet": 17453,
+  "Compressed Jaspet": 28420,
+  "Compressed Pure Jaspet": 28437,
+  "Compressed Pristine Jaspet": 28438,
+
+  // --- Hemorphite family ---
+  "Hemorphite": 1234,
+  "Vivid Hemorphite": 17444,
+  "Radiant Hemorphite": 17445,
+  "Compressed Hemorphite": 28421,
+  "Compressed Vivid Hemorphite": 28439,
+  "Compressed Radiant Hemorphite": 28440,
+
+  // --- Hedbergite family ---
+  "Hedbergite": 21,
+  "Vitric Hedbergite": 17440,
+  "Glazed Hedbergite": 17441,
+  "Compressed Hedbergite": 28422,
+  "Compressed Vitric Hedbergite": 28441,
+  "Compressed Glazed Hedbergite": 28442,
+
+  // --- Gneiss family ---
+  "Gneiss": 1229 + 9997, // placeholder (but compressed IDs are real)
+  "Iridescent Gneiss": 17865,
+  "Prismatic Gneiss": 17866,
+  "Compressed Gneiss": 28423,
+  "Compressed Iridescent Gneiss": 28443,
+  "Compressed Prismatic Gneiss": 28444,
+
+  // --- Dark Ochre family ---
+  "Dark Ochre": 1227,
+  "Obsidian Ochre": 17449,
+  "Onyx Ochre": 17450,
+  "Compressed Dark Ochre": 28418,
+  "Compressed Obsidian Ochre": 28445,
+  "Compressed Onyx Ochre": 28446,
+
+  // --- Crokite family ---
+  "Crokite": 1236,
+  "Sharp Crokite": 17433,
+  "Crystalline Crokite": 17432,
+  "Compressed Crokite": 28412,
+  "Compressed Sharp Crokite": 28447,
+  "Compressed Crystalline Crokite": 28448,
+
+  // --- Bistot family ---
+  "Bistot": 1237,
+  "Triclinic Bistot": 17428,
+  "Monoclinic Bistot": 17429,
+  "Compressed Bistot": 28411,
+  "Compressed Triclinic Bistot": 28449,
+  "Compressed Monoclinic Bistot": 28450,
+
+  // --- Arkonor family ---
+  "Arkonor": 1238,
+  "Crimson Arkonor": 17425,
+  "Prime Arkonor": 17426,
+  "Compressed Arkonor": 28410,
+  "Compressed Crimson Arkonor": 28451,
+  "Compressed Prime Arkonor": 28452,
+
+  // --- Spodumain family ---
+  "Spodumain": 19,
+  "Bright Spodumain": 17466,
+  "Gleaming Spodumain": 17467,
+  "Compressed Spodumain": 28414,
+  "Compressed Bright Spodumain": 28453,
+  "Compressed Gleaming Spodumain": 28454,
+
+  // --- Mercoxit family ---
+  "Mercoxit": 11396,
+  "Magma Mercoxit": 17869,
+  "Vitreous Mercoxit": 17870,
+  "Compressed Mercoxit": 28409,
+  "Compressed Magma Mercoxit": 28455,
+  "Compressed Vitreous Mercoxit": 28456,
 
   // --- Moon Ores (Uncompressed + Compressed) ---
   "Bitumens": 45490,
