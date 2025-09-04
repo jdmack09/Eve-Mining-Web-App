@@ -295,7 +295,7 @@ async function resolveType(name) {
     return resolved;
   }
 
-  // 2. Fallback: fuzzwork
+  // 2. Fallback: fuzzwork lookup
   try {
     const resp = await fetch(`https://www.fuzzwork.co.uk/api/typeid2.php?typename=${encodeURIComponent(cleanName)}`);
     const data = await resp.json();
@@ -317,20 +317,26 @@ async function resolveType(name) {
   return null;
 }
 
-// ===== Fetch Price from EVETycoon (average) =====
+// ===== Fetch Price with Fallback Chain =====
 async function getPrice(typeID) {
   if (!typeID) return 0;
   if (priceCache.has(typeID)) return priceCache.get(typeID);
 
-  const regionID = document.getElementById("hubSelect")?.value || "10000002";
   let price = 0;
 
   try {
-    const resp = await fetch(`https://api.evetools.org/market/${regionID}/types/${typeID}`);
-    const data = await resp.json();
-    price = Number(data?.average || 0);
+    // Always Jita region (10000002)
+    const fwUrl = `https://market.fuzzwork.co.uk/aggregates/?region=10000002&types=${typeID}`;
+    const fwResp = await fetch(fwUrl);
+    const fwData = await fwResp.json();
+
+    // Fallback chain: sell.min → buy.max
+    price = Number(fwData?.[typeID]?.sell?.min) || 0;
+    if (price <= 0) {
+      price = Number(fwData?.[typeID]?.buy?.max) || 0;
+    }
   } catch (e) {
-    console.error("Price fetch failed", typeID, e);
+    console.error("Price fetch failed for typeID", typeID, e);
   }
 
   priceCache.set(typeID, price);
@@ -398,7 +404,7 @@ document.getElementById("generate").addEventListener("click", async () => {
     section.innerHTML = `
       <h2>${cat}</h2>
       <table>
-        <tr><th>Ore</th><th>Qty</th><th>m³</th><th>ISK (avg)</th><th>Total ISK</th></tr>
+        <tr><th>Ore</th><th>Qty</th><th>m³</th><th>ISK (sell.min → buy.max)</th><th>Total ISK</th></tr>
         ${rows.map(r => `
           <tr>
             <td>${r.name}</td>
@@ -435,10 +441,9 @@ document.getElementById("generate").addEventListener("click", async () => {
 document.getElementById("downloadExcel").addEventListener("click", () => {
   const wb = XLSX.utils.book_new();
   const now = new Date();
-  const hubName = document.getElementById("hubSelect")?.selectedOptions[0].text || "Jita";
 
   const timestamp = `${now.toISOString().slice(0,10)}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}`;
-  const filename = `EVE_Mining_Report_${hubName}_${timestamp}.xlsx`;
+  const filename = `EVE_Mining_Report_Jita_${timestamp}.xlsx`;
 
   const sections = document.querySelectorAll(".report-section");
   sections.forEach(section => {
