@@ -298,64 +298,15 @@ const oreData = {
 };
 
 // =====================================================
-// Fallback caches and resolvers
+// Caches + helpers
 // =====================================================
-const typeCache = new Map();  // name -> {typeID, volume, name, category}
-const priceCache = new Map(); // typeID -> price
+const typeCache = new Map();
+const priceCache = new Map();
 
 function normalizeName(name) {
   return String(name || "").trim();
 }
 
-// Try static first; if missing fields, fetch from Fuzzwork
-async function resolveType(name) {
-  const key = normalizeName(name);
-  if (typeCache.has(key)) return typeCache.get(key);
-
-  // Prefer static entry (by exact key)
-  let entry = oreData[key];
-
-  // If not found, also try to be forgiving: collapse double spaces
-  if (!entry && key.includes("  ")) {
-    entry = oreData[key.replace(/\s+/g, " ")];
-  }
-
-  // If static present AND has both typeID & volume, use it
-  if (entry && entry.typeID && entry.volume != null) {
-    const resolved = { typeID: entry.typeID, volume: entry.volume, name: key, category: entry.category || guessCategory(key) };
-    typeCache.set(key, resolved);
-    return resolved;
-  }
-
-  // Else: fetch from Fuzzwork (only once)
-  try {
-    const resp = await fetch(`https://www.fuzzwork.co.uk/api/typeid2.php?typename=${encodeURIComponent(key)}`);
-    const data = await resp.json();
-
-    if (data && data.typeid) {
-      // If we had a partial static entry, merge in missing fields
-      const vol = (entry && entry.volume != null) ? entry.volume : (data.volume || 0);
-      const cat = (entry && entry.category) ? entry.category : guessCategory(data.name || key);
-      const resolved = { typeID: data.typeid, volume: Number(vol) || 0, name: data.name || key, category: cat };
-      typeCache.set(key, resolved);
-      return resolved;
-    }
-  } catch (e) {
-    console.error("Fuzzwork resolve error for", key, e);
-  }
-
-  // Last resort: if we had a static entry missing IDs, return it with null typeID (will block price)
-  if (entry) {
-    const resolved = { typeID: entry.typeID || null, volume: entry.volume || 0, name: key, category: entry.category || guessCategory(key) };
-    typeCache.set(key, resolved);
-    return resolved;
-  }
-
-  typeCache.set(key, null);
-  return null;
-}
-
-// Gentle category guess only used if static entry lacked category
 function guessCategory(name) {
   if (/Bezdnacine|Rakovene|Talassonite/i.test(name)) return CATS.TRIG;
   if (/Veldspar|Scordite|Plagioclase|Pyroxeres|Omber|Kernite|Jaspet|Hemorphite|Hedbergite|Gneiss|Ochre|Crokite|Bistot|Arkonor|Spodumain|Mercoxit/i.test(name)) return CATS.AST;
@@ -365,19 +316,74 @@ function guessCategory(name) {
   return CATS.OTHER;
 }
 
-// Live price based off of drop down choice
+// --- Resolve type info (static → fallback to Fuzzwork)
+async function resolveType(name) {
+  const key = normalizeName(name);
+  if (typeCache.has(key)) return typeCache.get(key);
+
+  let entry = oreData[key];
+  if (entry && entry.typeID && entry.volume != null) {
+    const resolved = { typeID: entry.typeID, volume: entry.volume, name: key, category: entry.category || guessCategory(key) };
+    typeCache.set(key, resolved);
+    return resolved;
+  }
+
+  // fallback: fuzzwork lookup
+  try {
+    const resp = await fetch(`https://www.fuzzwork.co.uk/api/typeid2.php?typename=${encodeURIComponent(key)}`);
+    const data = await resp.json();
+    if (data && data.typeid) {
+      const resolved = {
+        typeID: data.typeid,
+        volume: Number(data.volume) || (entry?.volume || 0),
+        name: data.name || key,
+        category: entry?.category || guessCategory(data.name || key)
+      };
+      typeCache.set(key, resolved);
+      return resolved;
+    }
+  } catch (e) {
+    console.error("Resolve error", key, e);
+  }
+
+  typeCache.set(key, null);
+  return null;
+}
+
+// --- Live Price Fetch with fallback ---
 async function getPrice(typeID) {
   if (!typeID) return 0;
   if (priceCache.has(typeID)) return priceCache.get(typeID);
 
-  const regionID = document.getElementById("hubSelect").value || "10000002"; // default Jita
+  const hubs = {
+    "10000002": "Jita",
+    "10000043": "Amarr",
+    "10000032": "Dodixie",
+    "10000030": "Hek",
+    "10000042": "Rens"
+  };
+
+  const regionID = document.getElementById("hubSelect")?.value || "10000002";
+  const hubName = hubs[regionID] || "Jita";
 
   try {
-    const resp = await fetch(
-      `https://api.evemarketer.com/ec/marketstat/json?typeid=${typeID}&regionlimit=${regionID}`
-    );
+    // EvEMarketer
+    const url = `https://api.evemarketer.com/ec/marketstat/json?typeid=${typeID}&regionlimit=${regionID}`;
+    console.log(`Fetching ${hubName} price (EvEMarketer):`, url);
+    const resp = await fetch(url);
     const data = await resp.json();
-    const price = Number(data?.[0]?.sell?.min) || 0;
+    let price = Number(data?.[0]?.sell?.min) || 0;
+    if (price > 0) {
+      priceCache.set(typeID, price);
+      return price;
+    }
+
+    // Fallback: Fuzzwork
+    const fwUrl = `https://market.fuzzwork.co.uk/aggregates/?region=${regionID}&types=${typeID}`;
+    console.log(`Fallback fetching ${hubName} price (Fuzzwork):`, fwUrl);
+    const fwResp = await fetch(fwUrl);
+    const fwData = await fwResp.json();
+    price = Number(fwData?.[typeID]?.sell?.min) || 0;
     priceCache.set(typeID, price);
     return price;
   } catch (e) {
@@ -388,33 +394,25 @@ async function getPrice(typeID) {
 }
 
 // =====================================================
-// Main: Generate Report
+// Generate Report
 // =====================================================
 document.getElementById("generate").addEventListener("click", async () => {
   const input = document.getElementById("miningHold").value.trim();
-  if (!input) {
-    alert("Paste your mining hold first.");
-    return;
-  }
+  if (!input) return alert("Paste your mining hold first.");
 
-  // Parse lines: "<name>\t<qty>" or "<name>    <qty>"
   const lines = input.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const parsed = [];
   for (const line of lines) {
     const parts = line.split(/\t+|\s{2,}/);
     if (parts.length >= 2) {
       const name = parts.slice(0, -1).join(" ").trim();
-      const qty = Number(String(parts[parts.length - 1]).replace(/[,\s]/g, ""));
+      const qty = Number(parts[parts.length - 1].replace(/[,\s]/g, ""));
       if (name && qty > 0) parsed.push({ name, qty });
     }
   }
-  if (!parsed.length) {
-    alert("No valid lines found. Format should be: <Name><tab><Qty> (or multiple spaces).");
-    return;
-  }
+  if (!parsed.length) return alert("No valid lines found.");
 
-  // Resolve & price
-  const buckets = {}; // { category: [{name, qty, volume, price, total}]}
+  const buckets = {};
   const unresolved = [];
   let grandTotal = 0;
 
@@ -427,21 +425,13 @@ document.getElementById("generate").addEventListener("click", async () => {
 
     const price = await getPrice(resolved.typeID);
     const total = price * row.qty;
-    const vol = (Number(resolved.volume) || 0) * row.qty;
+    const vol = (resolved.volume || 0) * row.qty;
 
     if (!buckets[resolved.category]) buckets[resolved.category] = [];
-    buckets[resolved.category].push({
-      name: resolved.name || row.name,
-      qty: row.qty,
-      price,
-      total,
-      volume: vol
-    });
-
+    buckets[resolved.category].push({ name: resolved.name, qty: row.qty, price, total, volume: vol });
     grandTotal += total;
   }
 
-  // Render
   const reportDiv = document.getElementById("report");
   reportDiv.innerHTML = "";
 
@@ -450,16 +440,15 @@ document.getElementById("generate").addEventListener("click", async () => {
     const rows = buckets[cat];
     if (!rows || !rows.length) continue;
 
-    // Sort by ISK desc for readability
     rows.sort((a, b) => b.total - a.total);
-
     const catTotal = rows.reduce((s, r) => s + r.total, 0);
+
     const section = document.createElement("div");
     section.className = "report-section category-" + cat.replace(/\s+/g, "");
     section.innerHTML = `
       <h2>${cat}</h2>
       <table>
-        <tr><th>Ore</th><th>Qty</th><th>m³</th><th>ISK (Jita)</th><th>Total ISK</th></tr>
+        <tr><th>Ore</th><th>Qty</th><th>m³</th><th>ISK (${document.getElementById("hubSelect")?.selectedOptions[0].text})</th><th>Total ISK</th></tr>
         ${rows.map(r => `
           <tr>
             <td>${r.name}</td>
@@ -467,8 +456,7 @@ document.getElementById("generate").addEventListener("click", async () => {
             <td>${fmtVOL(r.volume)}</td>
             <td>${fmtISK(r.price)}</td>
             <td>${fmtISK(r.total)}</td>
-          </tr>
-        `).join("")}
+          </tr>`).join("")}
         <tr class="total"><td colspan="4">Category Total</td><td>${fmtISK(catTotal)}</td></tr>
       </table>
     `;
@@ -485,8 +473,7 @@ document.getElementById("generate").addEventListener("click", async () => {
     unr.className = "report-section unresolved";
     unr.innerHTML = `
       <h2>Unresolved Items</h2>
-      <p>These names didn’t match (exactly). Try the in-game names.</p>
-      <ul>${unresolved.map(u => `<li>${u.name} (${u.qty.toLocaleString()})</li>`).join("")}</ul>
+      <ul>${unresolved.map(u => `<li>${u.name} (${u.qty})</li>`).join("")}</ul>
     `;
     reportDiv.appendChild(unr);
   }
@@ -495,12 +482,12 @@ document.getElementById("generate").addEventListener("click", async () => {
 });
 
 // =====================================================
-// Excel Export (one sheet per rendered section)
+// Excel Export
 // =====================================================
 document.getElementById("downloadExcel").addEventListener("click", () => {
   const wb = XLSX.utils.book_new();
   const now = new Date();
-  const filename = `EVE_Mining_Report_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}.xlsx`;
+  const filename = `EVE_Mining_Report_${now.toISOString().slice(0,10)}_${now.getHours()}${now.getMinutes()}.xlsx`;
 
   const sections = document.querySelectorAll(".report-section");
   sections.forEach(section => {
