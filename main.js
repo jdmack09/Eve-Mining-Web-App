@@ -365,13 +365,17 @@ function guessCategory(name) {
   return CATS.OTHER;
 }
 
-// Live Jita price (region 10000002)
+// Live price based off of drop down choice
 async function getPrice(typeID) {
   if (!typeID) return 0;
   if (priceCache.has(typeID)) return priceCache.get(typeID);
 
+  const regionID = document.getElementById("hubSelect").value || "10000002"; // default Jita
+
   try {
-    const resp = await fetch(`https://api.evemarketer.com/ec/marketstat/json?typeid=${typeID}&regionlimit=10000002`);
+    const resp = await fetch(
+      `https://api.evemarketer.com/ec/marketstat/json?typeid=${typeID}&regionlimit=${regionID}`
+    );
     const data = await resp.json();
     const price = Number(data?.[0]?.sell?.min) || 0;
     priceCache.set(typeID, price);

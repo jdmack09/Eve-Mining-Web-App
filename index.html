@@ -9,15 +9,32 @@
 <body>
   <div class="container">
     <h1>EVE Mining Tracker</h1>
+
+    <!-- Trade Hub Selector -->
+    <div class="hub-selector">
+      <label for="hubSelect">Select Trade Hub:</label>
+      <select id="hubSelect">
+        <option value="10000002">Jita (The Forge)</option>
+        <option value="10000043">Amarr (Domain)</option>
+        <option value="10000032">Dodixie (Sinq Laison)</option>
+        <option value="10000030">Rens (Heimatar)</option>
+        <option value="10000042">Hek (Metropolis)</option>
+      </select>
+    </div>
+
+    <!-- Mining Hold Input -->
     <textarea id="miningHold" placeholder="Paste your mining hold here..."></textarea>
+
+    <!-- Action Buttons -->
     <div class="buttons">
       <button id="generate">Generate Report</button>
       <button id="downloadExcel" disabled>Download as Excel</button>
     </div>
+
+    <!-- Report Output -->
     <div id="report"></div>
   </div>
 
-  <!-- Marked as a module so import/export works -->
-  <script type="module" src="main.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
