@@ -97,7 +97,7 @@ const typeIDs = {
   "Compressed Glazed Hedbergite": 28442,
 
   // --- Gneiss family ---
-  "Gneiss": 1229 + 9997, // placeholder (but compressed IDs are real)
+  "Gneiss": 1229,
   "Iridescent Gneiss": 17865,
   "Prismatic Gneiss": 17866,
   "Compressed Gneiss": 28423,
