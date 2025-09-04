@@ -350,42 +350,43 @@ async function resolveType(name) {
   return null;
 }
 
-// --- Live Price Fetch with fallback ---
+// --- Live Price Fetch with buy/sell toggle ---
 async function getPrice(typeID) {
   if (!typeID) return 0;
   if (priceCache.has(typeID)) return priceCache.get(typeID);
 
-  const hubs = {
-    "10000002": "Jita",
-    "10000043": "Amarr",
-    "10000032": "Dodixie",
-    "10000030": "Hek",
-    "10000042": "Rens"
-  };
-
   const regionID = document.getElementById("hubSelect")?.value || "10000002";
-  const hubName = hubs[regionID] || "Jita";
+  const priceType = document.getElementById("priceType")?.value || "sell";
 
   try {
-    // EvEMarketer
+    // --- First try EvEMarketer ---
     const url = `https://api.evemarketer.com/ec/marketstat/json?typeid=${typeID}&regionlimit=${regionID}`;
-    console.log(`Fetching ${hubName} price (EvEMarketer):`, url);
     const resp = await fetch(url);
     const data = await resp.json();
-    let price = Number(data?.[0]?.sell?.min) || 0;
-    if (price > 0) {
-      priceCache.set(typeID, price);
-      return price;
+
+    let price = 0;
+    if (priceType === "buy") {
+      price = Number(data?.[0]?.buy?.max) || Number(data?.[0]?.buy?.avg) || 0;
+    } else {
+      price = Number(data?.[0]?.sell?.min) || Number(data?.[0]?.sell?.avg) || 0;
     }
 
-    // Fallback: Fuzzwork
-    const fwUrl = `https://market.fuzzwork.co.uk/aggregates/?region=${regionID}&types=${typeID}`;
-    console.log(`Fallback fetching ${hubName} price (Fuzzwork):`, fwUrl);
-    const fwResp = await fetch(fwUrl);
-    const fwData = await fwResp.json();
-    price = Number(fwData?.[typeID]?.sell?.min) || 0;
+    // --- If EvEMarketer didn’t return useful data, try Fuzzwork ---
+    if (price <= 0) {
+      const fwUrl = `https://market.fuzzwork.co.uk/aggregates/?region=${regionID}&types=${typeID}`;
+      const fwResp = await fetch(fwUrl);
+      const fwData = await fwResp.json();
+
+      if (priceType === "buy") {
+        price = Number(fwData?.[typeID]?.buy?.max) || Number(fwData?.[typeID]?.buy?.avg) || 0;
+      } else {
+        price = Number(fwData?.[typeID]?.sell?.min) || Number(fwData?.[typeID]?.sell?.avg) || 0;
+      }
+    }
+
     priceCache.set(typeID, price);
     return price;
+
   } catch (e) {
     console.error("Price fetch failed for typeID", typeID, e);
     priceCache.set(typeID, 0);
@@ -482,12 +483,17 @@ document.getElementById("generate").addEventListener("click", async () => {
 });
 
 // =====================================================
-// Excel Export
+// Excel Export (with hub + price type in filename)
 // =====================================================
 document.getElementById("downloadExcel").addEventListener("click", () => {
   const wb = XLSX.utils.book_new();
   const now = new Date();
-  const filename = `EVE_Mining_Report_${now.toISOString().slice(0,10)}_${now.getHours()}${now.getMinutes()}.xlsx`;
+
+  const hubName = document.getElementById("hubSelect")?.selectedOptions[0].text || "Jita";
+  const priceType = document.getElementById("priceType")?.selectedOptions[0].text || "Sell";
+
+  const timestamp = `${now.toISOString().slice(0,10)}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}`;
+  const filename = `EVE_Mining_Report_${hubName}_${priceType}_${timestamp}.xlsx`;
 
   const sections = document.querySelectorAll(".report-section");
   sections.forEach(section => {
