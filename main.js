@@ -323,7 +323,12 @@ async function resolveType(name) {
 
   let entry = oreData[key];
   if (entry && entry.typeID && entry.volume != null) {
-    const resolved = { typeID: entry.typeID, volume: entry.volume, name: key, category: entry.category || guessCategory(key) };
+    const resolved = {
+      typeID: entry.typeID,
+      volume: entry.volume,
+      name: key,
+      category: entry.category || guessCategory(key)
+    };
     typeCache.set(key, resolved);
     return resolved;
   }
@@ -350,14 +355,12 @@ async function resolveType(name) {
   return null;
 }
 
-// --- Live Price Fetch (average buy/sell only) ---
+// --- Live Price Fetch (LOCKED to average SELL) ---
 async function getPrice(typeID) {
   if (!typeID) return 0;
   if (priceCache.has(typeID)) return priceCache.get(typeID);
 
   const regionID = document.getElementById("hubSelect")?.value || "10000002";
-  const priceType = document.getElementById("priceType")?.value || "sell"; // still used to switch buy/sell
-
   let price = 0;
 
   try {
@@ -365,24 +368,14 @@ async function getPrice(typeID) {
     const url = `https://api.evemarketer.com/ec/marketstat/json?typeid=${typeID}&regionlimit=${regionID}`;
     const resp = await fetch(url);
     const data = await resp.json();
-
-    if (priceType === "buy") {
-      price = Number(data?.[0]?.buy?.avg) || 0;
-    } else {
-      price = Number(data?.[0]?.sell?.avg) || 0;
-    }
+    price = Number(data?.[0]?.sell?.avg) || 0;
 
     // If no price, fallback to Fuzzwork
     if (price <= 0) {
       const fwUrl = `https://market.fuzzwork.co.uk/aggregates/?region=${regionID}&types=${typeID}`;
       const fwResp = await fetch(fwUrl);
       const fwData = await fwResp.json();
-
-      if (priceType === "buy") {
-        price = Number(fwData?.[typeID]?.buy?.avg) || 0;
-      } else {
-        price = Number(fwData?.[typeID]?.sell?.avg) || 0;
-      }
+      price = Number(fwData?.[typeID]?.sell?.avg) || 0;
     }
 
     priceCache.set(typeID, price);
@@ -484,17 +477,15 @@ document.getElementById("generate").addEventListener("click", async () => {
 });
 
 // =====================================================
-// Excel Export (with hub + price type in filename)
+// Excel Export
 // =====================================================
 document.getElementById("downloadExcel").addEventListener("click", () => {
   const wb = XLSX.utils.book_new();
   const now = new Date();
 
   const hubName = document.getElementById("hubSelect")?.selectedOptions[0].text || "Jita";
-  const priceType = document.getElementById("priceType")?.selectedOptions[0].text || "Sell";
-
   const timestamp = `${now.toISOString().slice(0,10)}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}`;
-  const filename = `EVE_Mining_Report_${hubName}_${priceType}_${timestamp}.xlsx`;
+  const filename = `EVE_Mining_Report_${hubName}_SellAvg_${timestamp}.xlsx`;
 
   const sections = document.querySelectorAll(".report-section");
   sections.forEach(section => {
