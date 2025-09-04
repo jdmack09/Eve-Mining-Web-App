@@ -283,7 +283,7 @@ async function resolveType(name) {
 
   if (typeCache.has(cleanName)) return typeCache.get(cleanName);
 
-  // 1. Static map first
+  // 1. Static map
   if (typeIDs[cleanName]) {
     const resolved = {
       typeID: typeIDs[cleanName],
@@ -295,7 +295,7 @@ async function resolveType(name) {
     return resolved;
   }
 
-  // 2. Fallback: fuzzwork lookup
+  // 2. Fallback fuzzwork lookup
   try {
     const resp = await fetch(`https://www.fuzzwork.co.uk/api/typeid2.php?typename=${encodeURIComponent(cleanName)}`);
     const data = await resp.json();
@@ -317,29 +317,32 @@ async function resolveType(name) {
   return null;
 }
 
-// ===== Fetch Price with Fallback Chain =====
+// ===== Fetch Price (Fallback Chain) =====
 async function getPrice(typeID) {
   if (!typeID) return 0;
-  if (priceCache.has(typeID)) return priceCache.get(typeID);
+  const regionID = document.getElementById("hubSelect")?.value || "10000002";
+
+  const cacheKey = `${typeID}_${regionID}`;
+  if (priceCache.has(cacheKey)) return priceCache.get(cacheKey);
 
   let price = 0;
 
   try {
-    // Always Jita region (10000002)
-    const fwUrl = `https://market.fuzzwork.co.uk/aggregates/?region=10000002&types=${typeID}`;
-    const fwResp = await fetch(fwUrl);
-    const fwData = await fwResp.json();
+    const url = `https://market.fuzzwork.co.uk/aggregates/?region=${regionID}&types=${typeID}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    const stats = data?.[typeID] || {};
 
-    // Fallback chain: sell.min → buy.max
-    price = Number(fwData?.[typeID]?.sell?.min) || 0;
-    if (price <= 0) {
-      price = Number(fwData?.[typeID]?.buy?.max) || 0;
-    }
+    // Fallback chain: sell.min → sell.avg → buy.max → buy.avg
+    price = Number(stats?.sell?.min) || 
+            Number(stats?.sell?.avg) || 
+            Number(stats?.buy?.max) || 
+            Number(stats?.buy?.avg) || 0;
   } catch (e) {
     console.error("Price fetch failed for typeID", typeID, e);
   }
 
-  priceCache.set(typeID, price);
+  priceCache.set(cacheKey, price);
   return price;
 }
 
@@ -404,16 +407,15 @@ document.getElementById("generate").addEventListener("click", async () => {
     section.innerHTML = `
       <h2>${cat}</h2>
       <table>
-        <tr><th>Ore</th><th>Qty</th><th>m³</th><th>ISK (sell.min → buy.max)</th><th>Total ISK</th></tr>
+        <tr><th>Ore</th><th>Qty</th><th>ISK (price)</th><th>Total ISK</th></tr>
         ${rows.map(r => `
           <tr>
             <td>${r.name}</td>
             <td>${r.qty.toLocaleString()}</td>
-            <td>${fmtVOL(r.volume)}</td>
             <td>${fmtISK(r.price)}</td>
             <td>${fmtISK(r.total)}</td>
           </tr>`).join("")}
-        <tr class="total"><td colspan="4">Category Total</td><td>${fmtISK(catTotal)}</td></tr>
+        <tr class="total"><td colspan="3">Category Total</td><td>${fmtISK(catTotal)}</td></tr>
       </table>
     `;
     reportDiv.appendChild(section);
@@ -441,9 +443,10 @@ document.getElementById("generate").addEventListener("click", async () => {
 document.getElementById("downloadExcel").addEventListener("click", () => {
   const wb = XLSX.utils.book_new();
   const now = new Date();
+  const hubName = document.getElementById("hubSelect")?.selectedOptions[0].text || "Jita";
 
   const timestamp = `${now.toISOString().slice(0,10)}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}`;
-  const filename = `EVE_Mining_Report_Jita_${timestamp}.xlsx`;
+  const filename = `EVE_Mining_Report_${hubName}_${timestamp}.xlsx`;
 
   const sections = document.querySelectorAll(".report-section");
   sections.forEach(section => {
@@ -458,4 +461,12 @@ document.getElementById("downloadExcel").addEventListener("click", () => {
   });
 
   XLSX.writeFile(wb, filename);
+});
+
+// ===== Auto-refresh when hub selection changes =====
+document.getElementById("hubSelect").addEventListener("change", () => {
+  const input = document.getElementById("miningHold").value.trim();
+  if (input) {
+    document.getElementById("generate").click();
+  }
 });
