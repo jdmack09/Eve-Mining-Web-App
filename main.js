@@ -116,8 +116,15 @@ document.getElementById("generate").addEventListener("click", async () => {
 // Excel Export
 document.getElementById("downloadExcel").addEventListener("click", () => {
   if (!lastReportData.length) return;
+
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(lastReportData);
   XLSX.utils.book_append_sheet(wb, ws, "Mining Report");
-  XLSX.writeFile(wb, "EVE_Mining_Report.xlsx");
+
+  // Format date & time for filename: YYYY-MM-DD_HHMM
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+
+  XLSX.writeFile(wb, `EVE_Mining_Report_${timestamp}.xlsx`);
 });
