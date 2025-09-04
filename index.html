@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EVE Mining Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>EVE Mining Tracker</h1>
+    <textarea id="miningHold" placeholder="Paste your mining hold here..."></textarea>
+    <div class="buttons">
+      <button id="generate">Generate Report</button>
+      <button id="downloadExcel" disabled>Download as Excel</button>
+    </div>
+    <div id="report"></div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>
