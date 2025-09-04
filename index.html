@@ -2,38 +2,33 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>EVE Mining Tracker</title>
-  <link rel="stylesheet" href="style.css">
+  <title>EVE Ore Value Tracker</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
-    <h1>EVE Mining Tracker</h1>
+  <h1>EVE Ore Value Tracker</h1>
+  <p>Paste your mining hold below to calculate the most profitable trade hub for immediate selling.</p>
 
-    <!-- Trade Hub Selector -->
-    <div class="hub-selector">
-      <label for="hubSelect">Select Trade Hub:</label>
-      <select id="hubSelect">
-        <option value="10000002">Jita (The Forge)</option>
-        <option value="10000043">Amarr (Domain)</option>
-        <option value="10000032">Dodixie (Sinq Laison)</option>
-        <option value="10000030">Rens (Heimatar)</option>
-        <option value="10000042">Hek (Metropolis)</option>
-      </select>
-    </div>
+  <textarea id="miningHold" placeholder="Example:
+Compressed Veldspar    182990
+Plagioclase            12450"></textarea><br>
 
-    <!-- Mining Hold Input -->
-    <textarea id="miningHold" placeholder="Paste your mining hold here..."></textarea>
+  <button id="generate">Generate Report</button>
+  <button id="downloadExcel" disabled>Download Excel</button>
+  <button id="clearReport">Clear</button>
 
-    <!-- Action Buttons -->
-    <div class="buttons">
-      <button id="generate">Generate Report</button>
-      <button id="downloadExcel" disabled>Download as Excel</button>
-    </div>
-
-    <!-- Report Output -->
-    <div id="report"></div>
+  <!-- Legend -->
+  <div class="report-section" style="max-width:600px; margin:auto; margin-top:20px;">
+    <h2>Legend</h2>
+    <ul style="list-style:none; padding:0; margin:0; text-align:left;">
+      <li><span class="best-hub">Highlighted Hub</span>: The station that pays the <strong>most ISK</strong> for that ore.</li>
+      <li><strong>Buy / Total</strong>: Shows the best current buy price per item, and the total ISK for your quantity.</li>
+      <li><strong>Grand Totals</strong>: Summed ISK per hub across all ores, with the most profitable hub highlighted.</li>
+    </ul>
   </div>
+
+  <div id="report"></div>
 
   <script src="main.js"></script>
 </body>
