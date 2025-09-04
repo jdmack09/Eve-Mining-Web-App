@@ -350,19 +350,18 @@ async function resolveType(name) {
   return null;
 }
 
-// --- Live Price Fetch with buy/sell average ---
+// --- Live Price Fetch (average buy/sell only) ---
 async function getPrice(typeID) {
-  if (!typeID) return { price: 0, hasData: false };
+  if (!typeID) return 0;
   if (priceCache.has(typeID)) return priceCache.get(typeID);
 
   const regionID = document.getElementById("hubSelect")?.value || "10000002";
-  const priceType = document.getElementById("priceType")?.value || "sell";
+  const priceType = document.getElementById("priceType")?.value || "sell"; // still used to switch buy/sell
 
   let price = 0;
-  let hasData = false;
 
   try {
-    // --- First try EvEMarketer ---
+    // Try EvEMarketer first
     const url = `https://api.evemarketer.com/ec/marketstat/json?typeid=${typeID}&regionlimit=${regionID}`;
     const resp = await fetch(url);
     const data = await resp.json();
@@ -373,10 +372,8 @@ async function getPrice(typeID) {
       price = Number(data?.[0]?.sell?.avg) || 0;
     }
 
-    if (price > 0) hasData = true;
-
-    // --- If EvEMarketer didn’t return useful data, try Fuzzwork ---
-    if (!hasData) {
+    // If no price, fallback to Fuzzwork
+    if (price <= 0) {
       const fwUrl = `https://market.fuzzwork.co.uk/aggregates/?region=${regionID}&types=${typeID}`;
       const fwResp = await fetch(fwUrl);
       const fwData = await fwResp.json();
@@ -386,22 +383,17 @@ async function getPrice(typeID) {
       } else {
         price = Number(fwData?.[typeID]?.sell?.avg) || 0;
       }
-
-      if (price > 0) hasData = true;
     }
 
-    const result = { price, hasData };
-    priceCache.set(typeID, result);
-    return result;
+    priceCache.set(typeID, price);
+    return price;
 
   } catch (e) {
     console.error("Price fetch failed for typeID", typeID, e);
-    const result = { price: 0, hasData: false };
-    priceCache.set(typeID, result);
-    return result;
+    priceCache.set(typeID, 0);
+    return 0;
   }
 }
-
 
 // =====================================================
 // Generate Report
