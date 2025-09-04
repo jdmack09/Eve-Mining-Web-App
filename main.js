@@ -1,361 +1,161 @@
-/* ===============================
-   EVE Mining Tracker – main.js
-   - Static oreData (wide coverage) + safe fallback lookups
-   - Jita prices via EVEMarketer
-   - Category grouping, report render, Excel export
-   =============================== */
-
-// -------- Helpers: formatters
+// ===== Helpers =====
 const fmtISK = (n) => (isFinite(n) ? Math.round(n).toLocaleString() : "0");
 const fmtVOL = (n) => (isFinite(n) ? n.toLocaleString() : "0");
 
-// -------- Category labels used in UI
-const CATS = {
-  AST: "Asteroid",
-  MOON: "Moon",
-  TRIG: "Triglavian",
-  GAS: "Gas",
-  ICE: "Ice",
-  OTHER: "Other"
-};
-
-// =====================================================
-//  Big static ore database (IDs/volumes known where possible)
-//  NOTE: For any entry with typeID:null or volume:null,
-//        the code will fetch it once via Fuzzwork as fallback.
-// =====================================================
-const oreData = {
-  // ========= Asteroid Ores (Hi/Low/Null) =========
-  // Veldspar family
-  "Veldspar":                       { typeID: 1230,  volume: 0.1,  category: CATS.AST },
-  "Concentrated Veldspar":          { typeID: 17471, volume: 0.1,  category: CATS.AST },
-  "Dense Veldspar":                 { typeID: 17470, volume: 0.1,  category: CATS.AST },
-  "Compressed Veldspar":            { typeID: 28430, volume: 0.1,  category: CATS.AST },
-  "Compressed Concentrated Veldspar":{ typeID: 28432, volume: 0.1, category: CATS.AST },
-  "Compressed Dense Veldspar":      { typeID: 28431, volume: 0.1,  category: CATS.AST },
-
-  // Scordite family
-  "Scordite":                       { typeID: 1228,  volume: 0.15, category: CATS.AST },
-  "Condensed Scordite":             { typeID: 17463, volume: 0.15, category: CATS.AST },
-  "Massive Scordite":               { typeID: 17464, volume: 0.15, category: CATS.AST },
-  "Compressed Scordite":            { typeID: 28428, volume: 0.15, category: CATS.AST },
-  "Compressed Condensed Scordite":  { typeID: 28429, volume: 0.15, category: CATS.AST },
-  "Compressed Massive Scordite":    { typeID: 28427, volume: 0.15, category: CATS.AST },
-
-  // Plagioclase family
-  "Plagioclase":                    { typeID: 18,    volume: 0.35, category: CATS.AST },
-  "Azure Plagioclase":              { typeID: 17459, volume: 0.35, category: CATS.AST },
-  "Rich Plagioclase":               { typeID: 17460, volume: 0.35, category: CATS.AST },
-  "Compressed Plagioclase":         { typeID: 28415, volume: 0.35, category: CATS.AST },
-  "Compressed Azure Plagioclase":   { typeID: 28417, volume: 0.35, category: CATS.AST },
-  "Compressed Rich Plagioclase":    { typeID: 28416, volume: 0.35, category: CATS.AST },
-
-  // Pyroxeres family
-  "Pyroxeres":                      { typeID: 1229,  volume: 0.3,  category: CATS.AST },
-  "Solid Pyroxeres":                { typeID: 17461, volume: 0.3,  category: CATS.AST },
-  "Viscous Pyroxeres":              { typeID: 17462, volume: 0.3,  category: CATS.AST },
-  "Compressed Pyroxeres":           { typeID: 28424, volume: 0.3,  category: CATS.AST },
-  "Compressed Solid Pyroxeres":     { typeID: 28426, volume: 0.3,  category: CATS.AST },
-  "Compressed Viscous Pyroxeres":   { typeID: 28425, volume: 0.3,  category: CATS.AST },
-
-  // Omber family
-  "Omber":                          { typeID: 1231,  volume: 0.6,  category: CATS.AST },
-  "Silvery Omber":                  { typeID: 17867, volume: 0.6,  category: CATS.AST },
-  "Golden Omber":                   { typeID: 17868, volume: 0.6,  category: CATS.AST },
-  "Compressed Omber":               { typeID: 28419, volume: 0.6,  category: CATS.AST },
-  "Compressed Silvery Omber":       { typeID: 28433, volume: 0.6,  category: CATS.AST },
-  "Compressed Golden Omber":        { typeID: 28434, volume: 0.6,  category: CATS.AST },
-
-  // Kernite family
-  "Kernite":                        { typeID: 20,    volume: 1.2,  category: CATS.AST },
-  "Luminous Kernite":               { typeID: 17455, volume: 1.2,  category: CATS.AST },
-  "Fiery Kernite":                  { typeID: 17456, volume: 1.2,  category: CATS.AST },
-  "Compressed Kernite":             { typeID: 28413, volume: 1.2,  category: CATS.AST },
-  "Compressed Luminous Kernite":    { typeID: 28436, volume: 1.2,  category: CATS.AST },
-  "Compressed Fiery Kernite":       { typeID: 28435, volume: 1.2,  category: CATS.AST },
-
-  // Jaspet family
-  "Jaspet":                         { typeID: 1226,  volume: 2.0,  category: CATS.AST },
-  "Pure Jaspet":                    { typeID: 17452, volume: 2.0,  category: CATS.AST },
-  "Pristine Jaspet":                { typeID: 17453, volume: 2.0,  category: CATS.AST },
-  "Compressed Jaspet":              { typeID: 28420, volume: 2.0,  category: CATS.AST },
-  "Compressed Pure Jaspet":         { typeID: 28437, volume: 2.0,  category: CATS.AST },
-  "Compressed Pristine Jaspet":     { typeID: 28438, volume: 2.0,  category: CATS.AST },
-
-  // Hemorphite family
-  "Hemorphite":                     { typeID: 1234,  volume: 3.0,  category: CATS.AST },
-  "Vivid Hemorphite":               { typeID: 17444, volume: 3.0,  category: CATS.AST },
-  "Radiant Hemorphite":             { typeID: 17445, volume: 3.0,  category: CATS.AST },
-  "Compressed Hemorphite":          { typeID: 28421, volume: 3.0,  category: CATS.AST },
-  "Compressed Vivid Hemorphite":    { typeID: 28439, volume: 3.0,  category: CATS.AST },
-  "Compressed Radiant Hemorphite":  { typeID: 28440, volume: 3.0,  category: CATS.AST },
-
-  // Hedbergite family
-  "Hedbergite":                     { typeID: 21,    volume: 3.0,  category: CATS.AST },
-  "Vitric Hedbergite":              { typeID: 17440, volume: 3.0,  category: CATS.AST },
-  "Glazed Hedbergite":              { typeID: 17441, volume: 3.0,  category: CATS.AST },
-  "Compressed Hedbergite":          { typeID: 28422, volume: 3.0,  category: CATS.AST },
-  "Compressed Vitric Hedbergite":   { typeID: 28441, volume: 3.0,  category: CATS.AST },
-  "Compressed Glazed Hedbergite":   { typeID: 28442, volume: 3.0,  category: CATS.AST },
-
-  // Gneiss family
-  "Gneiss":                         { typeID: 1229 + 9997, volume: 5.0, category: CATS.AST }, // typeID placeholder safety
-  "Iridescent Gneiss":              { typeID: 17865, volume: 5.0, category: CATS.AST },
-  "Prismatic Gneiss":               { typeID: 17866, volume: 5.0, category: CATS.AST },
-  "Compressed Gneiss":              { typeID: 28423, volume: 5.0, category: CATS.AST },
-  "Compressed Iridescent Gneiss":   { typeID: 28443, volume: 5.0, category: CATS.AST },
-  "Compressed Prismatic Gneiss":    { typeID: 28444, volume: 5.0, category: CATS.AST },
-
-  // Dark Ochre family
-  "Dark Ochre":                     { typeID: 1227,  volume: 8.0,  category: CATS.AST },
-  "Obsidian Ochre":                 { typeID: 17449, volume: 8.0,  category: CATS.AST },
-  "Onyx Ochre":                     { typeID: 17450, volume: 8.0,  category: CATS.AST },
-  "Compressed Dark Ochre":          { typeID: 28418, volume: 8.0,  category: CATS.AST },
-  "Compressed Obsidian Ochre":      { typeID: 28445, volume: 8.0,  category: CATS.AST },
-  "Compressed Onyx Ochre":          { typeID: 28446, volume: 8.0,  category: CATS.AST },
-
-  // Crokite family
-  "Crokite":                        { typeID: 1236,  volume: 16.0, category: CATS.AST },
-  "Sharp Crokite":                  { typeID: 17433, volume: 16.0, category: CATS.AST },
-  "Crystalline Crokite":            { typeID: 17432, volume: 16.0, category: CATS.AST },
-  "Compressed Crokite":             { typeID: 28412, volume: 16.0, category: CATS.AST },
-  "Compressed Sharp Crokite":       { typeID: 28447, volume: 16.0, category: CATS.AST },
-  "Compressed Crystalline Crokite": { typeID: 28448, volume: 16.0, category: CATS.AST },
-
-  // Bistot family
-  "Bistot":                         { typeID: 1237,  volume: 16.0, category: CATS.AST },
-  "Triclinic Bistot":               { typeID: 17428, volume: 16.0, category: CATS.AST },
-  "Monoclinic Bistot":              { typeID: 17429, volume: 16.0, category: CATS.AST },
-  "Compressed Bistot":              { typeID: 28411, volume: 16.0, category: CATS.AST },
-  "Compressed Triclinic Bistot":    { typeID: 28449, volume: 16.0, category: CATS.AST },
-  "Compressed Monoclinic Bistot":   { typeID: 28450, volume: 16.0, category: CATS.AST },
-
-  // Arkonor family
-  "Arkonor":                        { typeID: 1238,  volume: 16.0, category: CATS.AST },
-  "Crimson Arkonor":                { typeID: 17425, volume: 16.0, category: CATS.AST },
-  "Prime Arkonor":                  { typeID: 17426, volume: 16.0, category: CATS.AST },
-  "Compressed Arkonor":             { typeID: 28410, volume: 16.0, category: CATS.AST },
-  "Compressed Crimson Arkonor":     { typeID: 28451, volume: 16.0, category: CATS.AST },
-  "Compressed Prime Arkonor":       { typeID: 28452, volume: 16.0, category: CATS.AST },
-
-  // Spodumain family
-  "Spodumain":                      { typeID: 19,    volume: 16.0, category: CATS.AST },
-  "Bright Spodumain":               { typeID: 17466, volume: 16.0, category: CATS.AST },
-  "Gleaming Spodumain":             { typeID: 17467, volume: 16.0, category: CATS.AST },
-  "Compressed Spodumain":           { typeID: 28414, volume: 16.0, category: CATS.AST },
-  "Compressed Bright Spodumain":    { typeID: 28453, volume: 16.0, category: CATS.AST },
-  "Compressed Gleaming Spodumain":  { typeID: 28454, volume: 16.0, category: CATS.AST },
-
-  // Mercoxit family
-  "Mercoxit":                       { typeID: 11396, volume: 40.0, category: CATS.AST },
-  "Magma Mercoxit":                 { typeID: 17869, volume: 40.0, category: CATS.AST },
-  "Vitreous Mercoxit":              { typeID: 17870, volume: 40.0, category: CATS.AST },
-  "Compressed Mercoxit":            { typeID: 28409, volume: 40.0, category: CATS.AST },
-  "Compressed Magma Mercoxit":      { typeID: 28455, volume: 40.0, category: CATS.AST },
-  "Compressed Vitreous Mercoxit":   { typeID: 28456, volume: 40.0, category: CATS.AST },
-
-  // ========= Moon Ores (tiers) =========
-  // Ubiquitous
-  "Bitumens":                       { typeID: 45490, volume: 1.0, category: CATS.MOON },
-  "Coesite":                        { typeID: 45491, volume: 1.0, category: CATS.MOON },
-  "Sylvite":                        { typeID: 45492, volume: 1.0, category: CATS.MOON },
-  "Zeolites":                       { typeID: 45493, volume: 1.0, category: CATS.MOON },
-  "Compressed Bitumens":            { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Coesite":             { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Sylvite":             { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Zeolites":            { typeID: null,  volume: 1.0, category: CATS.MOON },
-
-  // Common
-  "Cobaltite":                      { typeID: 45494, volume: 1.0, category: CATS.MOON },
-  "Euxenite":                       { typeID: 45495, volume: 1.0, category: CATS.MOON },
-  "Titanite":                       { typeID: 45496, volume: 1.0, category: CATS.MOON },
-  "Scheelite":                      { typeID: 45497, volume: 1.0, category: CATS.MOON },
-  "Compressed Cobaltite":           { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Euxenite":            { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Titanite":            { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Scheelite":           { typeID: null,  volume: 1.0, category: CATS.MOON },
-
-  // Uncommon
-  "Otavite":                        { typeID: 45498, volume: 1.0, category: CATS.MOON },
-  "Sperrylite":                     { typeID: 45499, volume: 1.0, category: CATS.MOON },
-  "Vanadinite":                     { typeID: 45500, volume: 1.0, category: CATS.MOON },
-  "Chromite":                       { typeID: 45501, volume: 1.0, category: CATS.MOON },
-  "Compressed Otavite":             { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Sperrylite":          { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Vanadinite":          { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Chromite":            { typeID: null,  volume: 1.0, category: CATS.MOON },
-
-  // Rare
-  "Carnotite":                      { typeID: 45502, volume: 1.0, category: CATS.MOON },
-  "Zircon":                         { typeID: 45503, volume: 1.0, category: CATS.MOON },
-  "Pollucite":                      { typeID: 45504, volume: 1.0, category: CATS.MOON },
-  "Cinnabar":                       { typeID: 45505, volume: 1.0, category: CATS.MOON },
-  "Compressed Carnotite":           { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Zircon":              { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Pollucite":           { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Cinnabar":            { typeID: null,  volume: 1.0, category: CATS.MOON },
-
-  // Exceptional (R64)
-  "Xenotime":                       { typeID: 45506, volume: 1.0, category: CATS.MOON },
-  "Monazite":                       { typeID: 45507, volume: 1.0, category: CATS.MOON },
-  "Loparite":                       { typeID: 45508, volume: 1.0, category: CATS.MOON },
-  "Ytterbite":                      { typeID: 45509, volume: 1.0, category: CATS.MOON },
-  "Compressed Xenotime":            { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Monazite":            { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Loparite":            { typeID: null,  volume: 1.0, category: CATS.MOON },
-  "Compressed Ytterbite":           { typeID: null,  volume: 1.0, category: CATS.MOON },
-
-  // ========= Triglavian Ores =========
-  "Bezdnacine":                     { typeID: 62578, volume: 16.0, category: CATS.TRIG },
-  "Rakovene":                       { typeID: 62580, volume: 16.0, category: CATS.TRIG },
-  "Talassonite":                    { typeID: 62582, volume: 8.0,  category: CATS.TRIG },
-
-  "Compressed Bezdnacine":          { typeID: null,  volume: 16.0, category: CATS.TRIG },
-  "Compressed Rakovene":            { typeID: null,  volume: 16.0, category: CATS.TRIG },
-  "Compressed Talassonite":         { typeID: null,  volume: 8.0,  category: CATS.TRIG },
-
-  // Some UI variants seen in pastes
-  "Abyssal Bezdnacine":             { typeID: 62578, volume: 16.0, category: CATS.TRIG },
-  "Compressed Abyssal Bezdnacine":  { typeID: null,  volume: 16.0, category: CATS.TRIG },
-
-  // ========= Ice =========
-  "Blue Ice":                       { typeID: 16262, volume: 1000.0, category: CATS.ICE },
-  "Clear Icicle":                   { typeID: 16263, volume: 1000.0, category: CATS.ICE },
-  "Glacial Mass":                   { typeID: 16264, volume: 1000.0, category: CATS.ICE },
-  "White Glaze":                    { typeID: 16265, volume: 1000.0, category: CATS.ICE },
-  "Dark Glitter":                   { typeID: 17978, volume: 1000.0, category: CATS.ICE },
-  "Gelidus":                        { typeID: 17976, volume: 1000.0, category: CATS.ICE },
-  "Krystallos":                     { typeID: 17977, volume: 1000.0, category: CATS.ICE },
-  "Glare Crust":                    { typeID: 16266, volume: 1000.0, category: CATS.ICE },
-
-  "Compressed Blue Ice":            { typeID: null,  volume: 1000.0, category: CATS.ICE },
-  "Compressed Clear Icicle":        { typeID: null,  volume: 1000.0, category: CATS.ICE },
-  "Compressed Glacial Mass":        { typeID: null,  volume: 1000.0, category: CATS.ICE },
-  "Compressed White Glaze":         { typeID: null,  volume: 1000.0, category: CATS.ICE },
-  "Compressed Dark Glitter":        { typeID: null,  volume: 1000.0, category: CATS.ICE },
-  "Compressed Gelidus":             { typeID: null,  volume: 1000.0, category: CATS.ICE },
-  "Compressed Krystallos":          { typeID: null,  volume: 1000.0, category: CATS.ICE },
-  "Compressed Glare Crust":         { typeID: null,  volume: 1000.0, category: CATS.ICE },
-
-  // ========= Gas (Mykoserocin, Cytoserocin, Fullerites) =========
-  // Mykoserocin (HS/LS)
-  "Amber Mykoserocin":              { typeID: 25268, volume: 10.0, category: CATS.GAS },
-  "Golden Mykoserocin":             { typeID: 25270, volume: 10.0, category: CATS.GAS },
-  "Celadon Mykoserocin":            { typeID: 25279, volume: 10.0, category: CATS.GAS },
-  "Lime Mykoserocin":               { typeID: 28694, volume: 10.0, category: CATS.GAS },
-  "Malachite Mykoserocin":          { typeID: 25274, volume: 10.0, category: CATS.GAS },
-  "Vermillion Mykoserocin":         { typeID: 25271, volume: 10.0, category: CATS.GAS },
-  "Teal Mykoserocin":               { typeID: 28695, volume: 10.0, category: CATS.GAS },
-  "Viridian Mykoserocin":           { typeID: 28696, volume: 10.0, category: CATS.GAS },
-
-  "Compressed Amber Mykoserocin":   { typeID: null,  volume: 10.0, category: CATS.GAS },
-  "Compressed Golden Mykoserocin":  { typeID: null,  volume: 10.0, category: CATS.GAS },
-  "Compressed Celadon Mykoserocin": { typeID: null,  volume: 10.0, category: CATS.GAS },
-  "Compressed Lime Mykoserocin":    { typeID: null,  volume: 10.0, category: CATS.GAS },
-  "Compressed Malachite Mykoserocin":{ typeID: null, volume: 10.0, category: CATS.GAS },
-  "Compressed Vermillion Mykoserocin":{ typeID: null,volume: 10.0, category: CATS.GAS },
-  "Compressed Teal Mykoserocin":    { typeID: null,  volume: 10.0, category: CATS.GAS },
-  "Compressed Viridian Mykoserocin":{ typeID: null,  volume: 10.0, category: CATS.GAS },
-
-  // Cytoserocin (LS/Null)
-  "Azure Cytoserocin":              { typeID: 28697, volume: 10.0, category: CATS.GAS },
-  "Crimson Cytoserocin":            { typeID: 28698, volume: 10.0, category: CATS.GAS },
-  "IVORY Cytoserocin":              { typeID: 28699, volume: 10.0, category: CATS.GAS },
-  "LADAR Cytoserocin":              { typeID: 28700, volume: 10.0, category: CATS.GAS }, // placeholder names (rare)
-  "Lime Cytoserocin":               { typeID: 28701, volume: 10.0, category: CATS.GAS },
-  "Emerald Cytoserocin":            { typeID: 28702, volume: 10.0, category: CATS.GAS },
-  "Golden Cytoserocin":             { typeID: 28703, volume: 10.0, category: CATS.GAS },
-  "Viridian Cytoserocin":           { typeID: 28704, volume: 10.0, category: CATS.GAS },
-
-  "Compressed Azure Cytoserocin":   { typeID: null,  volume: 10.0, category: CATS.GAS },
-  "Compressed Crimson Cytoserocin": { typeID: null,  volume: 10.0, category: CATS.GAS },
-  "Compressed Ivory Cytoserocin":   { typeID: null,  volume: 10.0, category: CATS.GAS },
-  "Compressed Lime Cytoserocin":    { typeID: null,  volume: 10.0, category: CATS.GAS },
-  "Compressed Emerald Cytoserocin": { typeID: null,  volume: 10.0, category: CATS.GAS },
-  "Compressed Golden Cytoserocin":  { typeID: null,  volume: 10.0, category: CATS.GAS },
-  "Compressed Viridian Cytoserocin":{ typeID: null,  volume: 10.0, category: CATS.GAS },
-
-  // Fullerites (W-space)
-  "Fullerite-C28":                  { typeID: 30375, volume: 1.0, category: CATS.GAS },
-  "Fullerite-C32":                  { typeID: 30376, volume: 1.0, category: CATS.GAS },
-  "Fullerite-C50":                  { typeID: 30370, volume: 1.0, category: CATS.GAS },
-  "Fullerite-C60":                  { typeID: 30371, volume: 1.0, category: CATS.GAS },
-  "Fullerite-C70":                  { typeID: 30372, volume: 1.0, category: CATS.GAS },
-  "Fullerite-C72":                  { typeID: 30373, volume: 1.0, category: CATS.GAS },
-  "Fullerite-C84":                  { typeID: 30374, volume: 1.0, category: CATS.GAS },
-  "Fullerite-C320":                 { typeID: 30378, volume: 1.0, category: CATS.GAS },
-  "Fullerite-C540":                 { typeID: 30380, volume: 1.0, category: CATS.GAS },
-
-  "Compressed Fullerite-C28":       { typeID: null,  volume: 1.0, category: CATS.GAS },
-  "Compressed Fullerite-C32":       { typeID: null,  volume: 1.0, category: CATS.GAS },
-  "Compressed Fullerite-C50":       { typeID: null,  volume: 1.0, category: CATS.GAS },
-  "Compressed Fullerite-C60":       { typeID: null,  volume: 1.0, category: CATS.GAS },
-  "Compressed Fullerite-C70":       { typeID: null,  volume: 1.0, category: CATS.GAS },
-  "Compressed Fullerite-C72":       { typeID: null,  volume: 1.0, category: CATS.GAS },
-  "Compressed Fullerite-C84":       { typeID: null,  volume: 1.0, category: CATS.GAS },
-  "Compressed Fullerite-C320":      { typeID: null,  volume: 1.0, category: CATS.GAS },
-  "Compressed Fullerite-C540":      { typeID: null,  volume: 1.0, category: CATS.GAS }
-};
-
-// =====================================================
-// Caches + helpers
-// =====================================================
 const typeCache = new Map();
 const priceCache = new Map();
 
+// ===== Category Detection =====
+function getCategory(name) {
+  if (/Bezdnacine|Rakovene|Talassonite/i.test(name)) return "Triglavian";
+  if (/Veldspar|Scordite|Plagioclase|Pyroxeres|Omber|Kernite|Jaspet|Hemorphite|Hedbergite|Gneiss|Ochre|Crokite|Bistot|Arkonor|Spodumain|Mercoxit/i.test(name)) return "Asteroid";
+  if (/Bitumens|Coesite|Sylvite|Zeolites|Cobaltite|Euxenite|Titanite|Scheelite|Otavite|Sperrylite|Vanadinite|Chromite|Carnotite|Zircon|Pollucite|Cinnabar|Xenotime|Monazite|Loparite|Ytterbite/i.test(name)) return "Moon";
+  if (/Fullerite|Mykoserocin|Cytoserocin/i.test(name)) return "Gas";
+  if (/Ice|Icicle|Glacial|Glare|Glitter|Gelidus|Krystallos|Glaze/i.test(name)) return "Ice";
+  return "Other";
+}
+
+// ===== Normalize name (for compressed versions) =====
 function normalizeName(name) {
-  return String(name || "").trim();
+  return String(name || "").replace(/^Compressed\s+/i, "").trim();
 }
 
-function guessCategory(name) {
-  if (/Bezdnacine|Rakovene|Talassonite/i.test(name)) return CATS.TRIG;
-  if (/Veldspar|Scordite|Plagioclase|Pyroxeres|Omber|Kernite|Jaspet|Hemorphite|Hedbergite|Gneiss|Ochre|Crokite|Bistot|Arkonor|Spodumain|Mercoxit/i.test(name)) return CATS.AST;
-  if (/Bitumens|Coesite|Sylvite|Zeolites|Cobaltite|Euxenite|Titanite|Scheelite|Otavite|Sperrylite|Vanadinite|Chromite|Carnotite|Zircon|Pollucite|Cinnabar|Xenotime|Monazite|Loparite|Ytterbite/i.test(name)) return CATS.MOON;
-  if (/Fullerite|Mykoserocin|Cytoserocin/i.test(name)) return CATS.GAS;
-  if (/Ice|Icicle|Glacial|Glare|Glitter|Gelidus|Krystallos|Glaze/i.test(name)) return CATS.ICE;
-  return CATS.OTHER;
-}
+// ===== Alias corrections (all compressed ores/ice/gas) =====
+const nameAliases = {
+  // --- Compressed Veldspar Variants ---
+  "Compressed Veldspar": "Compressed Veldspar",
+  "Compressed Concentrated Veldspar": "Compressed Concentrated Veldspar",
+  "Compressed Dense Veldspar": "Compressed Dense Veldspar",
 
-// --- Resolve type info (static → fallback to Fuzzwork)
+  // --- Compressed Scordite Variants ---
+  "Compressed Scordite": "Compressed Scordite",
+  "Compressed Condensed Scordite": "Compressed Condensed Scordite",
+  "Compressed Massive Scordite": "Compressed Massive Scordite",
+
+  // --- Compressed Plagioclase Variants ---
+  "Compressed Plagioclase": "Compressed Plagioclase",
+  "Compressed Azure Plagioclase": "Compressed Azure Plagioclase",
+  "Compressed Rich Plagioclase": "Compressed Rich Plagioclase",
+
+  // --- Compressed Pyroxeres Variants ---
+  "Compressed Pyroxeres": "Compressed Pyroxeres",
+  "Compressed Solid Pyroxeres": "Compressed Solid Pyroxeres",
+  "Compressed Viscous Pyroxeres": "Compressed Viscous Pyroxeres",
+
+  // --- Compressed Omber Variants ---
+  "Compressed Omber": "Compressed Omber",
+  "Compressed Golden Omber": "Compressed Golden Omber",
+  "Compressed Silvery Omber": "Compressed Silvery Omber",
+
+  // --- Compressed Kernite Variants ---
+  "Compressed Kernite": "Compressed Kernite",
+  "Compressed Fiery Kernite": "Compressed Fiery Kernite",
+  "Compressed Luminous Kernite": "Compressed Luminous Kernite",
+
+  // --- Compressed Jaspet Variants ---
+  "Compressed Jaspet": "Compressed Jaspet",
+  "Compressed Pure Jaspet": "Compressed Pure Jaspet",
+  "Compressed Pristine Jaspet": "Compressed Pristine Jaspet",
+
+  // --- Compressed Hemorphite Variants ---
+  "Compressed Hemorphite": "Compressed Hemorphite",
+  "Compressed Vivid Hemorphite": "Compressed Vivid Hemorphite",
+  "Compressed Radiant Hemorphite": "Compressed Radiant Hemorphite",
+
+  // --- Compressed Hedbergite Variants ---
+  "Compressed Hedbergite": "Compressed Hedbergite",
+  "Compressed Glazed Hedbergite": "Compressed Glazed Hedbergite",
+  "Compressed Vitric Hedbergite": "Compressed Vitric Hedbergite",
+
+  // --- Compressed Gneiss Variants ---
+  "Compressed Gneiss": "Compressed Gneiss",
+  "Compressed Iridescent Gneiss": "Compressed Iridescent Gneiss",
+  "Compressed Prismatic Gneiss": "Compressed Prismatic Gneiss",
+
+  // --- Compressed Dark Ochre Variants ---
+  "Compressed Dark Ochre": "Compressed Dark Ochre",
+  "Compressed Obsidian Ochre": "Compressed Obsidian Ochre",
+  "Compressed Onyx Ochre": "Compressed Onyx Ochre",
+
+  // --- Compressed Spodumain Variants ---
+  "Compressed Spodumain": "Compressed Spodumain",
+  "Compressed Bright Spodumain": "Compressed Bright Spodumain",
+  "Compressed Gleaming Spodumain": "Compressed Gleaming Spodumain",
+
+  // --- Compressed Crokite Variants ---
+  "Compressed Crokite": "Compressed Crokite",
+  "Compressed Sharp Crokite": "Compressed Sharp Crokite",
+  "Compressed Crystalline Crokite": "Compressed Crystalline Crokite",
+
+  // --- Compressed Bistot Variants ---
+  "Compressed Bistot": "Compressed Bistot",
+  "Compressed Triclinic Bistot": "Compressed Triclinic Bistot",
+  "Compressed Monoclinic Bistot": "Compressed Monoclinic Bistot",
+
+  // --- Compressed Arkonor Variants ---
+  "Compressed Arkonor": "Compressed Arkonor",
+  "Compressed Crimson Arkonor": "Compressed Crimson Arkonor",
+  "Compressed Prime Arkonor": "Compressed Prime Arkonor",
+
+  // --- Compressed Mercoxit Variants ---
+  "Compressed Mercoxit": "Compressed Mercoxit",
+  "Compressed Magma Mercoxit": "Compressed Magma Mercoxit",
+  "Compressed Vitreous Mercoxit": "Compressed Vitreous Mercoxit",
+
+  // --- Compressed Ice Variants ---
+  "Compressed Blue Ice": "Compressed Blue Ice",
+  "Compressed Clear Icicle": "Compressed Clear Icicle",
+  "Compressed Glacial Mass": "Compressed Glacial Mass",
+  "Compressed White Glaze": "Compressed White Glaze",
+  "Compressed Glare Crust": "Compressed Glare Crust",
+  "Compressed Dark Glitter": "Compressed Dark Glitter",
+  "Compressed Gelidus": "Compressed Gelidus",
+  "Compressed Krystallos": "Compressed Krystallos",
+
+  // --- Compressed Gas (Fullerite) ---
+  "Compressed Fullerite-C28": "Compressed Fullerite-C28",
+  "Compressed Fullerite-C32": "Compressed Fullerite-C32",
+  "Compressed Fullerite-C50": "Compressed Fullerite-C50",
+  "Compressed Fullerite-C60": "Compressed Fullerite-C60",
+  "Compressed Fullerite-C70": "Compressed Fullerite-C70",
+  "Compressed Fullerite-C72": "Compressed Fullerite-C72",
+  "Compressed Fullerite-C84": "Compressed Fullerite-C84",
+  "Compressed Fullerite-C320": "Compressed Fullerite-C320",
+  "Compressed Fullerite-C540": "Compressed Fullerite-C540",
+};
+
+// ===== Resolve Type (via Fuzzwork with alias fix) =====
 async function resolveType(name) {
-  const key = normalizeName(name);
-  if (typeCache.has(key)) return typeCache.get(key);
+  const cleanName = name.replace(/\s+/g, " ").trim();
+  const queryName = nameAliases[cleanName] || cleanName;
 
-  let entry = oreData[key];
-  if (entry && entry.typeID && entry.volume != null) {
-    const resolved = {
-      typeID: entry.typeID,
-      volume: entry.volume,
-      name: key,
-      category: entry.category || guessCategory(key)
-    };
-    typeCache.set(key, resolved);
-    return resolved;
-  }
+  if (typeCache.has(queryName)) return typeCache.get(queryName);
 
-  // fallback: fuzzwork lookup
   try {
-    const resp = await fetch(`https://www.fuzzwork.co.uk/api/typeid2.php?typename=${encodeURIComponent(key)}`);
+    const resp = await fetch(
+      `https://www.fuzzwork.co.uk/api/typeid2.php?typename=${encodeURIComponent(queryName)}`
+    );
     const data = await resp.json();
+
     if (data && data.typeid) {
       const resolved = {
         typeID: data.typeid,
-        volume: Number(data.volume) || (entry?.volume || 0),
-        name: data.name || key,
-        category: entry?.category || guessCategory(data.name || key)
+        volume: Number(data.volume) || 0,
+        name: cleanName, // preserve original
+        category: getCategory(normalizeName(cleanName)),
       };
-      typeCache.set(key, resolved);
+      typeCache.set(queryName, resolved);
       return resolved;
     }
   } catch (e) {
-    console.error("Resolve error", key, e);
+    console.error("Resolve error", queryName, e);
   }
 
-  typeCache.set(key, null);
+  typeCache.set(queryName, null);
   return null;
 }
 
-// --- Live Price Fetch (LOCKED to average SELL) ---
+// ===== Fetch Average Price from Fuzzwork Aggregates =====
 async function getPrice(typeID) {
   if (!typeID) return 0;
   if (priceCache.has(typeID)) return priceCache.get(typeID);
@@ -364,39 +164,27 @@ async function getPrice(typeID) {
   let price = 0;
 
   try {
-    // Try EvEMarketer first
-    const url = `https://api.evemarketer.com/ec/marketstat/json?typeid=${typeID}&regionlimit=${regionID}`;
+    const url = `https://market.fuzzwork.co.uk/aggregates/?region=${regionID}&types=${typeID}`;
     const resp = await fetch(url);
     const data = await resp.json();
-    price = Number(data?.[0]?.sell?.avg) || 0;
 
-    // If no price, fallback to Fuzzwork
-    if (price <= 0) {
-      const fwUrl = `https://market.fuzzwork.co.uk/aggregates/?region=${regionID}&types=${typeID}`;
-      const fwResp = await fetch(fwUrl);
-      const fwData = await fwResp.json();
-      price = Number(fwData?.[typeID]?.sell?.avg) || 0;
-    }
-
+    price = Number(data?.[typeID]?.sell?.avg) || 0;
     priceCache.set(typeID, price);
     return price;
-
   } catch (e) {
-    console.error("Price fetch failed for typeID", typeID, e);
-    priceCache.set(typeID, 0);
+    console.error("Price fetch failed", typeID, e);
     return 0;
   }
 }
 
-// =====================================================
-// Generate Report
-// =====================================================
+// ===== Generate Report =====
 document.getElementById("generate").addEventListener("click", async () => {
   const input = document.getElementById("miningHold").value.trim();
   if (!input) return alert("Paste your mining hold first.");
 
   const lines = input.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const parsed = [];
+
   for (const line of lines) {
     const parts = line.split(/\t+|\s{2,}/);
     if (parts.length >= 2) {
@@ -407,9 +195,11 @@ document.getElementById("generate").addEventListener("click", async () => {
   }
   if (!parsed.length) return alert("No valid lines found.");
 
+  const reportDiv = document.getElementById("report");
+  reportDiv.innerHTML = "";
   const buckets = {};
-  const unresolved = [];
   let grandTotal = 0;
+  const unresolved = [];
 
   for (const row of parsed) {
     const resolved = await resolveType(row.name);
@@ -423,27 +213,32 @@ document.getElementById("generate").addEventListener("click", async () => {
     const vol = (resolved.volume || 0) * row.qty;
 
     if (!buckets[resolved.category]) buckets[resolved.category] = [];
-    buckets[resolved.category].push({ name: resolved.name, qty: row.qty, price, total, volume: vol });
+    buckets[resolved.category].push({
+      name: resolved.name,
+      qty: row.qty,
+      price,
+      total,
+      volume: vol,
+    });
+
     grandTotal += total;
   }
 
-  const reportDiv = document.getElementById("report");
-  reportDiv.innerHTML = "";
-
-  const catOrder = [CATS.AST, CATS.MOON, CATS.TRIG, CATS.GAS, CATS.ICE, CATS.OTHER];
+  // Render per-category tables
+  const catOrder = ["Asteroid", "Moon", "Triglavian", "Gas", "Ice", "Other"];
   for (const cat of catOrder) {
     const rows = buckets[cat];
-    if (!rows || !rows.length) continue;
+    if (!rows) continue;
 
     rows.sort((a, b) => b.total - a.total);
     const catTotal = rows.reduce((s, r) => s + r.total, 0);
 
     const section = document.createElement("div");
-    section.className = "report-section category-" + cat.replace(/\s+/g, "");
+    section.className = "report-section";
     section.innerHTML = `
       <h2>${cat}</h2>
       <table>
-        <tr><th>Ore</th><th>Qty</th><th>m³</th><th>ISK (${document.getElementById("hubSelect")?.selectedOptions[0].text})</th><th>Total ISK</th></tr>
+        <tr><th>Ore</th><th>Qty</th><th>m³</th><th>ISK (avg sell)</th><th>Total ISK</th></tr>
         ${rows.map(r => `
           <tr>
             <td>${r.name}</td>
@@ -458,14 +253,16 @@ document.getElementById("generate").addEventListener("click", async () => {
     reportDiv.appendChild(section);
   }
 
+  // Grand total
   const grand = document.createElement("div");
-  grand.className = "report-section grand-total";
+  grand.className = "grand-total";
   grand.innerHTML = `<h2>Grand Total: ${fmtISK(grandTotal)} ISK</h2>`;
   reportDiv.appendChild(grand);
 
+  // Unresolved items
   if (unresolved.length) {
     const unr = document.createElement("div");
-    unr.className = "report-section unresolved";
+    unr.className = "report-section";
     unr.innerHTML = `
       <h2>Unresolved Items</h2>
       <ul>${unresolved.map(u => `<li>${u.name} (${u.qty})</li>`).join("")}</ul>
@@ -476,16 +273,14 @@ document.getElementById("generate").addEventListener("click", async () => {
   document.getElementById("downloadExcel").disabled = false;
 });
 
-// =====================================================
-// Excel Export
-// =====================================================
+// ===== Excel Export =====
 document.getElementById("downloadExcel").addEventListener("click", () => {
   const wb = XLSX.utils.book_new();
   const now = new Date();
-
   const hubName = document.getElementById("hubSelect")?.selectedOptions[0].text || "Jita";
+
   const timestamp = `${now.toISOString().slice(0,10)}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}`;
-  const filename = `EVE_Mining_Report_${hubName}_SellAvg_${timestamp}.xlsx`;
+  const filename = `EVE_Mining_Report_${hubName}_${timestamp}.xlsx`;
 
   const sections = document.querySelectorAll(".report-section");
   sections.forEach(section => {

@@ -162,3 +162,9 @@ tr:nth-child(even) {
   color: #0ff;
   text-shadow: 0 0 15px #0ff;
 }
+
+/* 🔹 New: Highlight ISK column header */
+th.isk-col {
+  color: #fff;
+  text-shadow: 0 0 5px #0ff;
+}
