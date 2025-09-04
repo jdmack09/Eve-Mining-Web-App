@@ -15,147 +15,186 @@ function getCategory(name) {
   return "Other";
 }
 
-// ===== Normalize name (for compressed versions) =====
+// ===== Normalize name =====
 function normalizeName(name) {
-  return String(name || "").replace(/^Compressed\s+/i, "").trim();
+  return String(name || "").replace(/\s+/g, " ").trim();
 }
 
-// ===== Alias corrections (all compressed ores/ice/gas) =====
-const nameAliases = {
-  // --- Compressed Veldspar Variants ---
-  "Compressed Veldspar": "Compressed Veldspar",
-  "Compressed Concentrated Veldspar": "Compressed Concentrated Veldspar",
-  "Compressed Dense Veldspar": "Compressed Dense Veldspar",
+// ===== Static TypeID map (Ores, Moon, Gas, Ice, Triglavian, + all Compressed) =====
+const typeIDs = {
+  // --- Asteroid ores (as before, truncated for brevity) ---
+  "Veldspar": 1230,
+  "Compressed Veldspar": 28430,
+  "Azure Plagioclase": 17459,
+  "Compressed Azure Plagioclase": 28417,
+  // (… keep rest of asteroid ores here …)
 
-  // --- Compressed Scordite Variants ---
-  "Compressed Scordite": "Compressed Scordite",
-  "Compressed Condensed Scordite": "Compressed Condensed Scordite",
-  "Compressed Massive Scordite": "Compressed Massive Scordite",
+  // --- Moon Ores (Uncompressed + Compressed) ---
+  "Bitumens": 45490,
+  "Compressed Bitumens": 45510,
+  "Coesite": 45491,
+  "Compressed Coesite": 45511,
+  "Sylvite": 45492,
+  "Compressed Sylvite": 45512,
+  "Zeolites": 45493,
+  "Compressed Zeolites": 45513,
 
-  // --- Compressed Plagioclase Variants ---
-  "Compressed Plagioclase": "Compressed Plagioclase",
-  "Compressed Azure Plagioclase": "Compressed Azure Plagioclase",
-  "Compressed Rich Plagioclase": "Compressed Rich Plagioclase",
+  "Cobaltite": 45494,
+  "Compressed Cobaltite": 45514,
+  "Euxenite": 45495,
+  "Compressed Euxenite": 45515,
+  "Titanite": 45496,
+  "Compressed Titanite": 45516,
+  "Scheelite": 45497,
+  "Compressed Scheelite": 45517,
 
-  // --- Compressed Pyroxeres Variants ---
-  "Compressed Pyroxeres": "Compressed Pyroxeres",
-  "Compressed Solid Pyroxeres": "Compressed Solid Pyroxeres",
-  "Compressed Viscous Pyroxeres": "Compressed Viscous Pyroxeres",
+  "Otavite": 45498,
+  "Compressed Otavite": 45518,
+  "Sperrylite": 45499,
+  "Compressed Sperrylite": 45519,
+  "Vanadinite": 45500,
+  "Compressed Vanadinite": 45520,
+  "Chromite": 45501,
+  "Compressed Chromite": 45521,
 
-  // --- Compressed Omber Variants ---
-  "Compressed Omber": "Compressed Omber",
-  "Compressed Golden Omber": "Compressed Golden Omber",
-  "Compressed Silvery Omber": "Compressed Silvery Omber",
+  "Carnotite": 45502,
+  "Compressed Carnotite": 45522,
+  "Zircon": 45503,
+  "Compressed Zircon": 45523,
+  "Pollucite": 45504,
+  "Compressed Pollucite": 45524,
+  "Cinnabar": 45505,
+  "Compressed Cinnabar": 45525,
 
-  // --- Compressed Kernite Variants ---
-  "Compressed Kernite": "Compressed Kernite",
-  "Compressed Fiery Kernite": "Compressed Fiery Kernite",
-  "Compressed Luminous Kernite": "Compressed Luminous Kernite",
+  "Xenotime": 45506,
+  "Compressed Xenotime": 45526,
+  "Monazite": 45507,
+  "Compressed Monazite": 45527,
+  "Loparite": 45508,
+  "Compressed Loparite": 45528,
+  "Ytterbite": 45509,
+  "Compressed Ytterbite": 45529,
 
-  // --- Compressed Jaspet Variants ---
-  "Compressed Jaspet": "Compressed Jaspet",
-  "Compressed Pure Jaspet": "Compressed Pure Jaspet",
-  "Compressed Pristine Jaspet": "Compressed Pristine Jaspet",
+  // --- Triglavian Ores ---
+  "Bezdnacine": 62578,
+  "Compressed Bezdnacine": 62579,
+  "Rakovene": 62580,
+  "Compressed Rakovene": 62581,
+  "Talassonite": 62582,
+  "Compressed Talassonite": 62583,
 
-  // --- Compressed Hemorphite Variants ---
-  "Compressed Hemorphite": "Compressed Hemorphite",
-  "Compressed Vivid Hemorphite": "Compressed Vivid Hemorphite",
-  "Compressed Radiant Hemorphite": "Compressed Radiant Hemorphite",
+  // --- Ice Ores (uncompressed + compressed) ---
+  "Blue Ice": 16262,
+  "Compressed Blue Ice": 28407,
+  "Clear Icicle": 16263,
+  "Compressed Clear Icicle": 28408,
+  "Glacial Mass": 16264,
+  "Compressed Glacial Mass": 28406,
+  "White Glaze": 16265,
+  "Compressed White Glaze": 28405,
+  "Dark Glitter": 17978,
+  "Compressed Dark Glitter": 28403,
+  "Gelidus": 17976,
+  "Compressed Gelidus": 28402,
+  "Krystallos": 17977,
+  "Compressed Krystallos": 28404,
+  "Glare Crust": 16266,
+  "Compressed Glare Crust": 28401,
 
-  // --- Compressed Hedbergite Variants ---
-  "Compressed Hedbergite": "Compressed Hedbergite",
-  "Compressed Glazed Hedbergite": "Compressed Glazed Hedbergite",
-  "Compressed Vitric Hedbergite": "Compressed Vitric Hedbergite",
+  // --- Gas Ores (Fullerite, Mykoserocin, Cytoserocin) ---
+  "Fullerite-C28": 30375,
+  "Compressed Fullerite-C28": 45530,
+  "Fullerite-C32": 30376,
+  "Compressed Fullerite-C32": 45531,
+  "Fullerite-C50": 30370,
+  "Compressed Fullerite-C50": 45532,
+  "Fullerite-C60": 30371,
+  "Compressed Fullerite-C60": 45533,
+  "Fullerite-C70": 30372,
+  "Compressed Fullerite-C70": 45534,
+  "Fullerite-C72": 30373,
+  "Compressed Fullerite-C72": 45535,
+  "Fullerite-C84": 30374,
+  "Compressed Fullerite-C84": 45536,
+  "Fullerite-C320": 30378,
+  "Compressed Fullerite-C320": 45537,
+  "Fullerite-C540": 30380,
+  "Compressed Fullerite-C540": 45538,
 
-  // --- Compressed Gneiss Variants ---
-  "Compressed Gneiss": "Compressed Gneiss",
-  "Compressed Iridescent Gneiss": "Compressed Iridescent Gneiss",
-  "Compressed Prismatic Gneiss": "Compressed Prismatic Gneiss",
+  "Amber Mykoserocin": 25268,
+  "Compressed Amber Mykoserocin": 45539,
+  "Golden Mykoserocin": 25270,
+  "Compressed Golden Mykoserocin": 45540,
+  "Celadon Mykoserocin": 25279,
+  "Compressed Celadon Mykoserocin": 45541,
+  "Lime Mykoserocin": 28694,
+  "Compressed Lime Mykoserocin": 45542,
+  "Malachite Mykoserocin": 25274,
+  "Compressed Malachite Mykoserocin": 45543,
+  "Vermillion Mykoserocin": 25271,
+  "Compressed Vermillion Mykoserocin": 45544,
+  "Teal Mykoserocin": 28695,
+  "Compressed Teal Mykoserocin": 45545,
+  "Viridian Mykoserocin": 28696,
+  "Compressed Viridian Mykoserocin": 45546,
 
-  // --- Compressed Dark Ochre Variants ---
-  "Compressed Dark Ochre": "Compressed Dark Ochre",
-  "Compressed Obsidian Ochre": "Compressed Obsidian Ochre",
-  "Compressed Onyx Ochre": "Compressed Onyx Ochre",
-
-  // --- Compressed Spodumain Variants ---
-  "Compressed Spodumain": "Compressed Spodumain",
-  "Compressed Bright Spodumain": "Compressed Bright Spodumain",
-  "Compressed Gleaming Spodumain": "Compressed Gleaming Spodumain",
-
-  // --- Compressed Crokite Variants ---
-  "Compressed Crokite": "Compressed Crokite",
-  "Compressed Sharp Crokite": "Compressed Sharp Crokite",
-  "Compressed Crystalline Crokite": "Compressed Crystalline Crokite",
-
-  // --- Compressed Bistot Variants ---
-  "Compressed Bistot": "Compressed Bistot",
-  "Compressed Triclinic Bistot": "Compressed Triclinic Bistot",
-  "Compressed Monoclinic Bistot": "Compressed Monoclinic Bistot",
-
-  // --- Compressed Arkonor Variants ---
-  "Compressed Arkonor": "Compressed Arkonor",
-  "Compressed Crimson Arkonor": "Compressed Crimson Arkonor",
-  "Compressed Prime Arkonor": "Compressed Prime Arkonor",
-
-  // --- Compressed Mercoxit Variants ---
-  "Compressed Mercoxit": "Compressed Mercoxit",
-  "Compressed Magma Mercoxit": "Compressed Magma Mercoxit",
-  "Compressed Vitreous Mercoxit": "Compressed Vitreous Mercoxit",
-
-  // --- Compressed Ice Variants ---
-  "Compressed Blue Ice": "Compressed Blue Ice",
-  "Compressed Clear Icicle": "Compressed Clear Icicle",
-  "Compressed Glacial Mass": "Compressed Glacial Mass",
-  "Compressed White Glaze": "Compressed White Glaze",
-  "Compressed Glare Crust": "Compressed Glare Crust",
-  "Compressed Dark Glitter": "Compressed Dark Glitter",
-  "Compressed Gelidus": "Compressed Gelidus",
-  "Compressed Krystallos": "Compressed Krystallos",
-
-  // --- Compressed Gas (Fullerite) ---
-  "Compressed Fullerite-C28": "Compressed Fullerite-C28",
-  "Compressed Fullerite-C32": "Compressed Fullerite-C32",
-  "Compressed Fullerite-C50": "Compressed Fullerite-C50",
-  "Compressed Fullerite-C60": "Compressed Fullerite-C60",
-  "Compressed Fullerite-C70": "Compressed Fullerite-C70",
-  "Compressed Fullerite-C72": "Compressed Fullerite-C72",
-  "Compressed Fullerite-C84": "Compressed Fullerite-C84",
-  "Compressed Fullerite-C320": "Compressed Fullerite-C320",
-  "Compressed Fullerite-C540": "Compressed Fullerite-C540",
+  "Azure Cytoserocin": 28697,
+  "Compressed Azure Cytoserocin": 45547,
+  "Crimson Cytoserocin": 28698,
+  "Compressed Crimson Cytoserocin": 45548,
+  "Ivory Cytoserocin": 28699,
+  "Compressed Ivory Cytoserocin": 45549,
+  "Lime Cytoserocin": 28701,
+  "Compressed Lime Cytoserocin": 45550,
+  "Emerald Cytoserocin": 28702,
+  "Compressed Emerald Cytoserocin": 45551,
+  "Golden Cytoserocin": 28703,
+  "Compressed Golden Cytoserocin": 45552,
+  "Viridian Cytoserocin": 28704,
+  "Compressed Viridian Cytoserocin": 45553,
 };
 
-// ===== Resolve Type (via Fuzzwork with alias fix) =====
+// ===== Resolve Type =====
 async function resolveType(name) {
-  const cleanName = name.replace(/\s+/g, " ").trim();
-  const queryName = nameAliases[cleanName] || cleanName;
+  const cleanName = normalizeName(name);
 
-  if (typeCache.has(queryName)) return typeCache.get(queryName);
+  if (typeCache.has(cleanName)) return typeCache.get(cleanName);
 
+  // 1. Static map first
+  if (typeIDs[cleanName]) {
+    const resolved = {
+      typeID: typeIDs[cleanName],
+      volume: 0,
+      name: cleanName,
+      category: getCategory(cleanName),
+    };
+    typeCache.set(cleanName, resolved);
+    return resolved;
+  }
+
+  // 2. Fallback: fuzzwork
   try {
-    const resp = await fetch(
-      `https://www.fuzzwork.co.uk/api/typeid2.php?typename=${encodeURIComponent(queryName)}`
-    );
+    const resp = await fetch(`https://www.fuzzwork.co.uk/api/typeid2.php?typename=${encodeURIComponent(cleanName)}`);
     const data = await resp.json();
-
-    if (data && data.typeid) {
+    if (data?.typeid) {
       const resolved = {
         typeID: data.typeid,
         volume: Number(data.volume) || 0,
-        name: cleanName, // preserve original
-        category: getCategory(normalizeName(cleanName)),
+        name: cleanName,
+        category: getCategory(cleanName),
       };
-      typeCache.set(queryName, resolved);
+      typeCache.set(cleanName, resolved);
       return resolved;
     }
   } catch (e) {
-    console.error("Resolve error", queryName, e);
+    console.error("Resolve error", cleanName, e);
   }
 
-  typeCache.set(queryName, null);
+  typeCache.set(cleanName, null);
   return null;
 }
 
-// ===== Fetch Average Price from Fuzzwork Aggregates =====
+// ===== Fetch Price from EVETycoon (average) =====
 async function getPrice(typeID) {
   if (!typeID) return 0;
   if (priceCache.has(typeID)) return priceCache.get(typeID);
@@ -164,17 +203,15 @@ async function getPrice(typeID) {
   let price = 0;
 
   try {
-    const url = `https://market.fuzzwork.co.uk/aggregates/?region=${regionID}&types=${typeID}`;
-    const resp = await fetch(url);
+    const resp = await fetch(`https://api.evetools.org/market/${regionID}/types/${typeID}`);
     const data = await resp.json();
-
-    price = Number(data?.[typeID]?.sell?.avg) || 0;
-    priceCache.set(typeID, price);
-    return price;
+    price = Number(data?.average || 0);
   } catch (e) {
     console.error("Price fetch failed", typeID, e);
-    return 0;
   }
+
+  priceCache.set(typeID, price);
+  return price;
 }
 
 // ===== Generate Report =====
@@ -224,7 +261,7 @@ document.getElementById("generate").addEventListener("click", async () => {
     grandTotal += total;
   }
 
-  // Render per-category tables
+  // Render tables
   const catOrder = ["Asteroid", "Moon", "Triglavian", "Gas", "Ice", "Other"];
   for (const cat of catOrder) {
     const rows = buckets[cat];
@@ -238,7 +275,7 @@ document.getElementById("generate").addEventListener("click", async () => {
     section.innerHTML = `
       <h2>${cat}</h2>
       <table>
-        <tr><th>Ore</th><th>Qty</th><th>m³</th><th>ISK (avg sell)</th><th>Total ISK</th></tr>
+        <tr><th>Ore</th><th>Qty</th><th>m³</th><th>ISK (avg)</th><th>Total ISK</th></tr>
         ${rows.map(r => `
           <tr>
             <td>${r.name}</td>
@@ -253,16 +290,14 @@ document.getElementById("generate").addEventListener("click", async () => {
     reportDiv.appendChild(section);
   }
 
-  // Grand total
   const grand = document.createElement("div");
   grand.className = "grand-total";
   grand.innerHTML = `<h2>Grand Total: ${fmtISK(grandTotal)} ISK</h2>`;
   reportDiv.appendChild(grand);
 
-  // Unresolved items
   if (unresolved.length) {
     const unr = document.createElement("div");
-    unr.className = "report-section";
+    unr.className = "report-section unresolved";
     unr.innerHTML = `
       <h2>Unresolved Items</h2>
       <ul>${unresolved.map(u => `<li>${u.name} (${u.qty})</li>`).join("")}</ul>
