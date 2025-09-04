@@ -350,13 +350,16 @@ async function resolveType(name) {
   return null;
 }
 
-// --- Live Price Fetch with buy/sell toggle ---
+// --- Live Price Fetch with buy/sell average ---
 async function getPrice(typeID) {
-  if (!typeID) return 0;
+  if (!typeID) return { price: 0, hasData: false };
   if (priceCache.has(typeID)) return priceCache.get(typeID);
 
   const regionID = document.getElementById("hubSelect")?.value || "10000002";
   const priceType = document.getElementById("priceType")?.value || "sell";
+
+  let price = 0;
+  let hasData = false;
 
   try {
     // --- First try EvEMarketer ---
@@ -364,35 +367,41 @@ async function getPrice(typeID) {
     const resp = await fetch(url);
     const data = await resp.json();
 
-    let price = 0;
     if (priceType === "buy") {
-      price = Number(data?.[0]?.buy?.max) || Number(data?.[0]?.buy?.avg) || 0;
+      price = Number(data?.[0]?.buy?.avg) || 0;
     } else {
-      price = Number(data?.[0]?.sell?.min) || Number(data?.[0]?.sell?.avg) || 0;
+      price = Number(data?.[0]?.sell?.avg) || 0;
     }
 
+    if (price > 0) hasData = true;
+
     // --- If EvEMarketer didn’t return useful data, try Fuzzwork ---
-    if (price <= 0) {
+    if (!hasData) {
       const fwUrl = `https://market.fuzzwork.co.uk/aggregates/?region=${regionID}&types=${typeID}`;
       const fwResp = await fetch(fwUrl);
       const fwData = await fwResp.json();
 
       if (priceType === "buy") {
-        price = Number(fwData?.[typeID]?.buy?.max) || Number(fwData?.[typeID]?.buy?.avg) || 0;
+        price = Number(fwData?.[typeID]?.buy?.avg) || 0;
       } else {
-        price = Number(fwData?.[typeID]?.sell?.min) || Number(fwData?.[typeID]?.sell?.avg) || 0;
+        price = Number(fwData?.[typeID]?.sell?.avg) || 0;
       }
+
+      if (price > 0) hasData = true;
     }
 
-    priceCache.set(typeID, price);
-    return price;
+    const result = { price, hasData };
+    priceCache.set(typeID, result);
+    return result;
 
   } catch (e) {
     console.error("Price fetch failed for typeID", typeID, e);
-    priceCache.set(typeID, 0);
-    return 0;
+    const result = { price: 0, hasData: false };
+    priceCache.set(typeID, result);
+    return result;
   }
 }
+
 
 // =====================================================
 // Generate Report
